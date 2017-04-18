@@ -62,7 +62,7 @@ const double refclk = 31376.6; // measured
 volatile byte icnt;             // var inside interrupt
 volatile byte icnt1;            // var inside interrupt
 volatile byte c4ms;             // counter incremented all 4ms
-volatile unsigned long phaccu;  // pahse accumulator
+volatile unsigned long phaccu;  // phase accumulator
 volatile unsigned long tword_m; // dds tuning word m
 
 void setup() {
@@ -108,7 +108,6 @@ void loop() {
 // set prscaler to 1, PWM mode to phase correct PWM,  16000000/510 = 31372.55 Hz
 // clock
 void Setup_timer2() {
-
   // Timer2 Clock Prescaler to : 1
   sbi(TCCR2B, CS20);
   cbi(TCCR2B, CS21);
