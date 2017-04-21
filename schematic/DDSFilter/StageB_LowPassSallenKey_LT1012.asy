@@ -1,7 +1,7 @@
 Version 4
 SymbolType BLOCK
 RECTANGLE Normal 256 128 -32 -32
-TEXT -35 -189 Left 2 LowPass SallenKey with LT2078
+TEXT -35 -189 Left 2 LowPass SallenKey with LT1012
 WINDOW 0 -35 -220 Left 2
 WINDOW 39 -34 -159 Left 2
 PIN -32 48 LEFT 8
