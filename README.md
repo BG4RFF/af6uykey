@@ -6,3 +6,5 @@ Projects:
   - Good side tone is a must, not a buzzer
   - DDS tone generator will be based on this
      [article](http://interface.khm.de/index.php/lab/interfaces-advanced/arduino-dds-sinewave-generator)
+
+(Just starting this project.)
