@@ -3,3 +3,4 @@
 .clang_complete
 .gcc-flags.json
 nohup.out
+.DS_Store
