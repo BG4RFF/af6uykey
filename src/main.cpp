@@ -24,7 +24,7 @@
 #include <avr/pgmspace.h>
 
 typedef unsigned char uchar;
-void Setup_timer2();
+void Setup_timer();
 
 // table of 256 sine values / one sine period / stored in flash memory
 const uchar sine256[] PROGMEM = {
@@ -67,47 +67,99 @@ volatile unsigned long tword_m; // dds tuning word m
 
 void setup() {
   pinMode(ledPin, OUTPUT); // sets the digital pin as output
-  Serial.begin(115200);    // connect to the serial port
-  Serial.println("DDS Test");
 
+#ifdef __AVR_ATtiny85__
+  pinMode(1, OUTPUT);
+#else
   pinMode(6, OUTPUT);  // sets the digital pin as output
   pinMode(7, OUTPUT);  // sets the digital pin as output
   pinMode(11, OUTPUT); // pin11= PWM  output / frequency output
+#endif
 
-  Setup_timer2();
+  Setup_timer();
 
-  // disable interrupts to avoid timing distortion
-  cbi(TIMSK0, TOIE0); // disable Timer0 !!! delay() is now not available
-  sbi(TIMSK2, TOIE2); // enable Timer2 Interrupt
+// disable interrupts to avoid timing distortion
+#ifdef __AVR_ATtiny85__
+  cbi(TIMSK, TOIE1);
+#else
+  cbi(TIMSK0, TOIE0);  // disable Timer0 !!! delay() is now not available
+  sbi(TIMSK2, TOIE2);  // enable Timer2 Interrupt
+#endif
 
-  dfreq = 1000.0;                        // initial output frequency = 1000.o Hz
+  dfreq = 600.0;                         // initial output frequency = 1000.o Hz
   tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
 }
+
 void loop() {
   while (1) {
     if (c4ms > 250) { // timer / wait fou a full second
       c4ms = 0;
-      dfreq = analogRead(0); // read Poti on analog pin 0 to adjust output
-                             // frequency from 0..1023 Hz
+// dfreq = analogRead(0); // read Poti on analog pin 0 to adjust output
+// frequency from 0..1023 Hz
 
+#ifdef __AVR_ATtiny85__
+      cbi(TIMSK, TOIE1);                     // disble Timer2 Interrupt
+      tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
+      sbi(TIMSK, TOIE1);                     // enable Timer2 Interrupt
       cbi(TIMSK2, TOIE2);                    // disble Timer2 Interrupt
       tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
       sbi(TIMSK2, TOIE2);                    // enable Timer2 Interrupt
-
-      Serial.print(dfreq);
-      Serial.print("  ");
-      Serial.println(tword_m);
+#endif
     }
 
+#ifndef __AVR_ATtiny85__
     sbi(PORTD, 6); // Test / set PORTD,7 high to observe timing with a scope
     cbi(PORTD, 6); // Test /reset PORTD,7 high to observe timing with a scope
+#endif
   }
 }
+
+#ifdef __AVR_ATtiny85__
+
+//******************************************************************
+// timer0 setup
+// set prscaler to 1, PWM mode to phase correct PWM,  16000000/510 = 31372.55 Hz
+// clock
+void Setup_timer() {
+  // Timer2 Clock Prescaler to : 1
+  sbi(TCCR1, CS00);
+  cbi(TCCR1, CS01);
+  cbi(TCCR1, CS02);
+
+  // Timer2 PWM Mode set to Phase Correct PWM
+  cbi(TCCR1, COM0A0); // clear Compare Match
+  sbi(TCCR1, COM0A1);
+
+  sbi(TCCR1, WGM00); // Mode 1  / Phase Correct PWM
+  cbi(TCCR1, WGM01);
+  cbi(TCCR1, WGM02);
+}
+
+//******************************************************************
+// Timer0 Interrupt Service at 31372,550 KHz = 32uSec
+// this is the timebase REFCLOCK for the DDS generator
+// FOUT = (M (REFCLK)) / (2 exp 32)
+// runtime : 8 microseconds ( inclusive push and pop)
+ISR(TIMER1_OVF_vect) {
+  phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
+  icnt =
+      phaccu >> 24; // use upper 8 bits for phase accu as frequency information
+                    // read value fron ROM sine table and send to PWM DAC
+  OCR1A = pgm_read_byte_near(sine256 + icnt);
+
+  if (icnt1++ == 125) { // increment variable c4ms all 4 milliseconds
+    c4ms++;
+    icnt1 = 0;
+  }
+}
+
+#else
+
 //******************************************************************
 // timer2 setup
 // set prscaler to 1, PWM mode to phase correct PWM,  16000000/510 = 31372.55 Hz
 // clock
-void Setup_timer2() {
+void Setup_timer() {
   // Timer2 Clock Prescaler to : 1
   sbi(TCCR2B, CS20);
   cbi(TCCR2B, CS21);
@@ -144,3 +196,5 @@ ISR(TIMER2_OVF_vect) {
 
   cbi(PORTD, 7); // reset PORTD,7
 }
+
+#endif
