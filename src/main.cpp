@@ -45,13 +45,15 @@ const uchar sine256[] PROGMEM = {
     12,  14,  15,  16,  18,  20,  21,  23,  25,  27,  29,  31,  33,  35,  37,
     39,  42,  44,  46,  49,  51,  54,  56,  59,  62,  64,  67,  70,  73,  76,
     78,  81,  84,  87,  90,  93,  96,  99,  102, 105, 108, 111, 115, 118, 121,
-    124};
+    124
+
+};
+
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 
-int ledPin = 13; // LED pin 7
-int testPin = 7;
-int t2Pin = 6;
+int testPin = 2;
+int tPin = 1;
 byte bb;
 
 double dfreq;
@@ -62,116 +64,36 @@ const double refclk = 31376.6; // measured
 volatile byte icnt;             // var inside interrupt
 volatile byte icnt1;            // var inside interrupt
 volatile byte c4ms;             // counter incremented all 4ms
-volatile unsigned long phaccu;  // phase accumulator
+volatile unsigned long phaccu;  // pahse accumulator
 volatile unsigned long tword_m; // dds tuning word m
 
 void setup() {
-  pinMode(ledPin, OUTPUT); // sets the digital pin as output
-
-#ifdef __AVR_ATtiny85__
-  pinMode(1, OUTPUT);
-#else
-  pinMode(6, OUTPUT);  // sets the digital pin as output
-  pinMode(7, OUTPUT);  // sets the digital pin as output
-  pinMode(11, OUTPUT); // pin11= PWM  output / frequency output
-#endif
+  pinMode(testPin, OUTPUT);
+  pinMode(tPin, OUTPUT); // pin11= PWM  output / frequency output
 
   Setup_timer();
 
-// disable interrupts to avoid timing distortion
-#ifdef __AVR_ATtiny85__
-  cbi(TIMSK, TOIE1);
-#else
-  cbi(TIMSK0, TOIE0);  // disable Timer0 !!! delay() is now not available
-  sbi(TIMSK2, TOIE2);  // enable Timer2 Interrupt
-#endif
+  sbi(TIMSK, OCIE0A); // enable Timer0 Interrupt
 
-  dfreq = 600.0;                         // initial output frequency = 1000.o Hz
+  dfreq = 1000.0;                        // initial output frequency = 1000.o Hz
   tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
 }
 
-void loop() {
-  while (1) {
-    if (c4ms > 250) { // timer / wait fou a full second
-      c4ms = 0;
-// dfreq = analogRead(0); // read Poti on analog pin 0 to adjust output
-// frequency from 0..1023 Hz
+void loop() {}
 
-#ifdef __AVR_ATtiny85__
-      cbi(TIMSK, TOIE1);                     // disble Timer2 Interrupt
-      tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
-      sbi(TIMSK, TOIE1);                     // enable Timer2 Interrupt
-      cbi(TIMSK2, TOIE2);                    // disble Timer2 Interrupt
-      tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
-      sbi(TIMSK2, TOIE2);                    // enable Timer2 Interrupt
-#endif
-    }
-
-#ifndef __AVR_ATtiny85__
-    sbi(PORTD, 6); // Test / set PORTD,7 high to observe timing with a scope
-    cbi(PORTD, 6); // Test /reset PORTD,7 high to observe timing with a scope
-#endif
-  }
-}
-
-#ifdef __AVR_ATtiny85__
-
-//******************************************************************
-// timer0 setup
-// set prscaler to 1, PWM mode to phase correct PWM,  16000000/510 = 31372.55 Hz
-// clock
 void Setup_timer() {
-  // Timer2 Clock Prescaler to : 1
-  sbi(TCCR1, CS00);
-  cbi(TCCR1, CS01);
-  cbi(TCCR1, CS02);
+  // Prescaler to : 1
+  sbi(TCCR0B, CS00);
+  cbi(TCCR0B, CS01);
+  cbi(TCCR0B, CS02);
 
-  // Timer2 PWM Mode set to Phase Correct PWM
-  cbi(TCCR1, COM0A0); // clear Compare Match
-  sbi(TCCR1, COM0A1);
+  // PWM Mode set to Phase Correct PWM
+  cbi(TCCR0A, COM0B0); // clear Compare Match
+  sbi(TCCR0A, COM0B1);
 
-  sbi(TCCR1, WGM00); // Mode 1  / Phase Correct PWM
-  cbi(TCCR1, WGM01);
-  cbi(TCCR1, WGM02);
-}
-
-//******************************************************************
-// Timer0 Interrupt Service at 31372,550 KHz = 32uSec
-// this is the timebase REFCLOCK for the DDS generator
-// FOUT = (M (REFCLK)) / (2 exp 32)
-// runtime : 8 microseconds ( inclusive push and pop)
-ISR(TIMER1_OVF_vect) {
-  phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
-  icnt =
-      phaccu >> 24; // use upper 8 bits for phase accu as frequency information
-                    // read value fron ROM sine table and send to PWM DAC
-  OCR1A = pgm_read_byte_near(sine256 + icnt);
-
-  if (icnt1++ == 125) { // increment variable c4ms all 4 milliseconds
-    c4ms++;
-    icnt1 = 0;
-  }
-}
-
-#else
-
-//******************************************************************
-// timer2 setup
-// set prscaler to 1, PWM mode to phase correct PWM,  16000000/510 = 31372.55 Hz
-// clock
-void Setup_timer() {
-  // Timer2 Clock Prescaler to : 1
-  sbi(TCCR2B, CS20);
-  cbi(TCCR2B, CS21);
-  cbi(TCCR2B, CS22);
-
-  // Timer2 PWM Mode set to Phase Correct PWM
-  cbi(TCCR2A, COM2A0); // clear Compare Match
-  sbi(TCCR2A, COM2A1);
-
-  sbi(TCCR2A, WGM20); // Mode 1  / Phase Correct PWM
-  cbi(TCCR2A, WGM21);
-  cbi(TCCR2B, WGM22);
+  sbi(TCCR0A, WGM00); // Mode 1  / Phase Correct PWM
+  cbi(TCCR0A, WGM01);
+  cbi(TCCR0B, WGM02);
 }
 
 //******************************************************************
@@ -179,22 +101,18 @@ void Setup_timer() {
 // this is the timebase REFCLOCK for the DDS generator
 // FOUT = (M (REFCLK)) / (2 exp 32)
 // runtime : 8 microseconds ( inclusive push and pop)
-ISR(TIMER2_OVF_vect) {
+ISR(TIMER1_OVF_vect) {
 
-  sbi(PORTD, 7); // Test / set PORTD,7 high to observe timing with a oscope
+  digitalWrite(testPin, HIGH);
 
   phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
-  icnt =
-      phaccu >> 24; // use upper 8 bits for phase accu as frequency information
-                    // read value fron ROM sine table and send to PWM DAC
-  OCR2A = pgm_read_byte_near(sine256 + icnt);
+  icnt = phaccu >> 24;
+  OCR0B = pgm_read_byte_near(sine256 + icnt);
 
   if (icnt1++ == 125) { // increment variable c4ms all 4 milliseconds
     c4ms++;
     icnt1 = 0;
   }
 
-  cbi(PORTD, 7); // reset PORTD,7
+  digitalWrite(testPin, LOW);
 }
-
-#endif
