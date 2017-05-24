@@ -1,6 +1,6 @@
 
 /*
- * This file is modified by AF6UY (dspmathguru) but parts are copied from
+ * This file is modified by AF6UY (dspmathguru) using ideas from:
  * http://interface.khm.de/index.php/lab/interfaces-advanced/arduino-dds-sinewave-generator/
  */
 /*
@@ -24,7 +24,6 @@
 #include <avr/pgmspace.h>
 
 typedef unsigned char uchar;
-void Setup_timer();
 
 // table of 256 sine values / one sine period / stored in flash memory
 const uchar sine256[] PROGMEM = {
@@ -52,9 +51,8 @@ const uchar sine256[] PROGMEM = {
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 
-int testPin = 2;
-int tPin = 1;
-byte bb;
+int testPin = PB1;
+int pwmPin = PB0;
 
 double dfreq;
 // const double refclk=31372.549;  // =16MHz / 510
@@ -67,52 +65,58 @@ volatile byte c4ms;             // counter incremented all 4ms
 volatile unsigned long phaccu;  // pahse accumulator
 volatile unsigned long tword_m; // dds tuning word m
 
-void setup() {
-  pinMode(testPin, OUTPUT);
-  pinMode(tPin, OUTPUT); // pin11= PWM  output / frequency output
-
-  Setup_timer();
-
-  sbi(TIMSK, OCIE0A); // enable Timer0 Interrupt
-
-  dfreq = 1000.0;                        // initial output frequency = 1000.o Hz
-  tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
-}
-
-void loop() {}
-
 void Setup_timer() {
+  noInterrupts();
+
   // Prescaler to : 1
   sbi(TCCR0B, CS00);
   cbi(TCCR0B, CS01);
   cbi(TCCR0B, CS02);
 
   // PWM Mode set to Phase Correct PWM
-  cbi(TCCR0A, COM0B0); // clear Compare Match
-  sbi(TCCR0A, COM0B1);
+  // Clear on up counting, set on down-counting
+  cbi(TCCR0A, COM0A0);
+  sbi(TCCR0A, COM0A1);
 
   sbi(TCCR0A, WGM00); // Mode 1  / Phase Correct PWM
   cbi(TCCR0A, WGM01);
   cbi(TCCR0B, WGM02);
+
+  sbi(GTCCR, PSR0);
+
+  sbi(TIMSK, OCIE0A); // enable Timer0 Interrupt
+
+  OCR0A = 0x7F;
+
+  interrupts();
 }
 
-//******************************************************************
-// Timer2 Interrupt Service at 31372,550 KHz = 32uSec
-// this is the timebase REFCLOCK for the DDS generator
-// FOUT = (M (REFCLK)) / (2 exp 32)
-// runtime : 8 microseconds ( inclusive push and pop)
-ISR(TIMER1_OVF_vect) {
+void setup() {
+  pinMode(testPin, OUTPUT);
+  // sbi(DDRB, PB1);
+  pinMode(pwmPin, OUTPUT);
+  // sbi(DDRB, PB0);
 
+  Setup_timer();
+
+  dfreq = 600.0;                         // initial output frequency = 1000.o Hz
+  tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
+}
+
+void loop() {}
+
+ISR(TIM0_OVF_vect) {
   digitalWrite(testPin, HIGH);
 
   phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
   icnt = phaccu >> 24;
-  OCR0B = pgm_read_byte_near(sine256 + icnt);
-
-  if (icnt1++ == 125) { // increment variable c4ms all 4 milliseconds
-    c4ms++;
-    icnt1 = 0;
-  }
+  OCR0A = pgm_read_byte_near(sine256 + icnt);
 
   digitalWrite(testPin, LOW);
+}
+
+int main() {
+  setup();
+  while (1)
+    loop();
 }
