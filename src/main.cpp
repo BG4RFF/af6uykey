@@ -54,7 +54,7 @@ const uchar sine256[] PROGMEM = {
 int pwmPin = PB0;
 int testPin = PB1;
 
-bool testVal = false;
+volatile bool testVal = false;
 
 double dfreq;
 // const double refclk=31372.549;  // =16MHz / 510
@@ -112,11 +112,13 @@ ISR(TIM0_OVF_vect) {
     digitalWrite(testPin, HIGH);
   else
     digitalWrite(testPin, LOW);
-  testVal = ~testVal;
+  testVal = !testVal;
 
   phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
   icnt = phaccu >> 24;
   OCR0A = pgm_read_byte_near(sine256 + icnt);
+
+  // digitalWrite(testPin, LOW);
 }
 
 int main() {
