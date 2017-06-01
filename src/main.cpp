@@ -51,8 +51,10 @@ const uchar sine256[] PROGMEM = {
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 
-int testPin = PB1;
 int pwmPin = PB0;
+int testPin = PB1;
+
+bool testVal = false;
 
 double dfreq;
 // const double refclk=31372.549;  // =16MHz / 510
@@ -84,7 +86,7 @@ void Setup_timer() {
 
   sbi(GTCCR, PSR0);
 
-  sbi(TIMSK, OCIE0A); // enable Timer0 Interrupt
+  sbi(TIMSK, TOIE0); // enable Timer0 Interrupt
 
   OCR0A = 0x7F;
 
@@ -92,10 +94,10 @@ void Setup_timer() {
 }
 
 void setup() {
-  pinMode(testPin, OUTPUT);
-  // sbi(DDRB, PB1);
   pinMode(pwmPin, OUTPUT);
   // sbi(DDRB, PB0);
+  pinMode(testPin, OUTPUT);
+  // sbi(DDRB, PB1);
 
   Setup_timer();
 
@@ -106,13 +108,15 @@ void setup() {
 void loop() {}
 
 ISR(TIM0_OVF_vect) {
-  digitalWrite(testPin, HIGH);
+  if (testVal)
+    digitalWrite(testPin, HIGH);
+  else
+    digitalWrite(testPin, LOW);
+  testVal = ~testVal;
 
   phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
   icnt = phaccu >> 24;
   OCR0A = pgm_read_byte_near(sine256 + icnt);
-
-  digitalWrite(testPin, LOW);
 }
 
 int main() {
