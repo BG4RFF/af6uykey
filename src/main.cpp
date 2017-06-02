@@ -23,6 +23,8 @@
 #endif
 #include <avr/pgmspace.h>
 
+#include <OneWireSlave.h>
+
 typedef unsigned char uchar;
 
 // table of 256 sine values / one sine period / stored in flash memory
@@ -53,6 +55,9 @@ const uchar sine256[] PROGMEM = {
 
 int pwmPin = PB0;
 int testPin = PB1;
+
+int oneWirePin = PB5;
+byte oneWireROM = 0x45;
 
 volatile bool testVal = false;
 
@@ -120,6 +125,13 @@ ISR(TIM0_OVF_vect) {
 
   // digitalWrite(testPin, LOW);
 }
+
+// OneWireSlave setup and callback
+void oneWireRXCallback(ReceiveEent evt, byte data)) {
+
+}
+
+void setupOneWire() { setRecieveCallback }
 
 int main() {
   setup();
