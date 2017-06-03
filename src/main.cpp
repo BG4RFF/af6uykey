@@ -14,16 +14,28 @@
 
  */
 
-#include <stdlib.h>
-#if ARDUINO >= 100
-#include <Arduino.h>
-#else
-#include <WProgram.h>
-#include <wiring.h>
-#endif
+#include <avr/interrupt.h>
+#include <avr/io.h>
 #include <avr/pgmspace.h>
+#include <avr/sfr_defs.h>
+#include <math.h>
+#include <stdlib.h>
 
-#include <OneWireSlave.h>
+typedef int8_t byte;
+
+#define I2C_SLAVE_ADDRESS 0x4
+
+//#include <TinyWireS.h>
+#ifndef TWI_RX_BUFFER_SIZE
+#define TWI_RX_BUFFER_SIZE (16)
+#endif
+
+volatile uint8_t i2c_regs[] = {
+    0xDE, 0xAD, 0xBE, 0xEF,
+};
+// Tracks the current register pointer position
+volatile byte reg_position;
+const byte reg_size = sizeof(i2c_regs);
 
 typedef unsigned char uchar;
 
@@ -53,11 +65,10 @@ const uchar sine256[] PROGMEM = {
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 
-int pwmPin = PB0;
-int testPin = PB1;
-
-int oneWirePin = PB5;
-byte oneWireROM = 0x45;
+int pwmPin = PB1;
+#define PWMPIN (DDB1)
+int testPin = PB3;
+#define TESTPIN (DDB3)
 
 volatile bool testVal = false;
 
@@ -73,7 +84,7 @@ volatile unsigned long phaccu;  // pahse accumulator
 volatile unsigned long tword_m; // dds tuning word m
 
 void Setup_timer() {
-  noInterrupts();
+  cli();
 
   // Prescaler to : 1
   sbi(TCCR0B, CS00);
@@ -82,8 +93,8 @@ void Setup_timer() {
 
   // PWM Mode set to Phase Correct PWM
   // Clear on up counting, set on down-counting
-  cbi(TCCR0A, COM0A0);
-  sbi(TCCR0A, COM0A1);
+  cbi(TCCR0A, COM0B0);
+  sbi(TCCR0A, COM0B1);
 
   sbi(TCCR0A, WGM00); // Mode 1  / Phase Correct PWM
   cbi(TCCR0A, WGM01);
@@ -93,16 +104,16 @@ void Setup_timer() {
 
   sbi(TIMSK, TOIE0); // enable Timer0 Interrupt
 
-  OCR0A = 0x7F;
+  OCR0B = 0x7F;
 
-  interrupts();
+  sei();
 }
 
 void setup() {
-  pinMode(pwmPin, OUTPUT);
-  // sbi(DDRB, PB0);
-  pinMode(testPin, OUTPUT);
-  // sbi(DDRB, PB1);
+  sbi(DDRB, PWMPIN);
+  // pinMode(pwmPin, OUTPUT);
+  sbi(DDRB, TESTPIN);
+  // pinMode(testPin, OUTPUT);
 
   Setup_timer();
 
@@ -114,24 +125,19 @@ void loop() {}
 
 ISR(TIM0_OVF_vect) {
   if (testVal)
-    digitalWrite(testPin, HIGH);
+    // digitalWrite(testPin, HIGH);
+    sbi(PORTB, TESTPIN);
   else
-    digitalWrite(testPin, LOW);
+    // digitalWrite(testPin, LOW);
+    cbi(PORTB, TESTPIN);
   testVal = !testVal;
 
   phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
   icnt = phaccu >> 24;
-  OCR0A = pgm_read_byte_near(sine256 + icnt);
+  OCR0B = pgm_read_byte_near(sine256 + icnt);
 
   // digitalWrite(testPin, LOW);
 }
-
-// OneWireSlave setup and callback
-void oneWireRXCallback(ReceiveEent evt, byte data)) {
-
-}
-
-void setupOneWire() { setRecieveCallback }
 
 int main() {
   setup();
