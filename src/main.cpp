@@ -1,17 +1,14 @@
-
 /*
- * This file is modified by AF6UY (dspmathguru) using ideas from:
- * http://interface.khm.de/index.php/lab/interfaces-advanced/arduino-dds-sinewave-generator/
- */
-/*
- * Original comment in file
- * DDS Sine Generator mit ATMEGS 168
- * Timer2 generates the  31250 KHz Clock Interrupt
+ * AF6UY (dspmathguru) Keyer - this is the tone generator for the project
+ *   See LICENSE file at top of directory tree
+ *   This works with the filter defined in the schematic section
+ *   I2C interface to change tone
  *
- * KHM 2009 /  Martin Nawrath
- * Kunsthochschule fuer Medien Koeln
- * Academy of Media Arts Cologne
+ *   TODO: need to add attack and decay to tone
 
+ *   Using concept from:
+ *
+ http://interface.khm.de/index.php/lab/interfaces-advanced/arduino-dds-sinewave-generator/
  */
 
 #include <avr/interrupt.h>
