@@ -21,21 +21,22 @@
 #include <math.h>
 #include <stdlib.h>
 
+#include <usitwislave.h>
+
 typedef int8_t byte;
 
-#define I2C_SLAVE_ADDRESS 0x4
-
-//#include <TinyWireS.h>
-#ifndef TWI_RX_BUFFER_SIZE
-#define TWI_RX_BUFFER_SIZE (16)
-#endif
-
-volatile uint8_t i2c_regs[] = {
-    0xDE, 0xAD, 0xBE, 0xEF,
+union getBytes {
+  double d;
+  uint8_t bs[32];
 };
-// Tracks the current register pointer position
-volatile byte reg_position;
-const byte reg_size = sizeof(i2c_regs);
+
+#define TONE_GEN_ADDR (0x4)
+
+#define ERROR (0xFF)
+#define AOK (0x00)
+#define BOGUS_LENGTH (0x01)
+#define READ_TONE_FREQ (0x02)
+#define WRITE_TONE_FREQ (0x03)
 
 typedef unsigned char uchar;
 
@@ -109,38 +110,74 @@ void Setup_timer() {
   sei();
 }
 
+void dataCallback(uint8_t input_buffer_length, const uint8_t *input_buffer,
+                  uint8_t *output_buffer_length, uint8_t *output_buffer) {
+  if (input_buffer_length < 1) {
+    *output_buffer_length = 2;
+    *output_buffer++ = ERROR;
+    *output_buffer++ = BOGUS_LENGTH;
+  }
+
+  uint8_t command = input_buffer[0];
+
+  if (command == READ_TONE_FREQ) {
+    // read tone frequency
+    *output_buffer_length = 1 + sizeof(dfreq);
+    output_buffer[0] = READ_TONE_FREQ;
+    getBytes bs;
+    bs.d = refclk;
+    for (unsigned int i = 0; i < sizeof(dfreq); i++) {
+      output_buffer[1 + i] = bs.bs[i];
+    }
+  } else if (command == WRITE_TONE_FREQ) {
+    getBytes bs;
+    for (unsigned int i = 0; i < sizeof(dfreq); i++) {
+      bs.bs[i] = input_buffer[1 + i];
+    }
+
+    dfreq = bs.d;
+    double hldr = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
+    cli();
+    tword_m = hldr;
+    sei();
+
+    *output_buffer_length = 1;
+    output_buffer[0] = AOK;
+  }
+}
+
 void setup() {
+  dfreq = 600.0;                         // initial output frequency = 1000.o Hz
+  tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
+
   sbi(DDRB, PWMPIN);
   // pinMode(pwmPin, OUTPUT);
   sbi(DDRB, TESTPIN);
   // pinMode(testPin, OUTPUT);
 
   Setup_timer();
-
-  dfreq = 600.0;                         // initial output frequency = 1000.o Hz
-  tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
 }
 
 void loop() {}
 
 ISR(TIM0_OVF_vect) {
-  if (testVal)
-    // digitalWrite(testPin, HIGH);
-    sbi(PORTB, TESTPIN);
-  else
-    // digitalWrite(testPin, LOW);
-    cbi(PORTB, TESTPIN);
-  testVal = !testVal;
+  // if (testVal)
+  // digitalWrite(testPin, HIGH);
+  sbi(PORTB, TESTPIN);
+  // else
+  // digitalWrite(testPin, LOW);
+  // cbi(PORTB, TESTPIN);
+  // testVal = !testVal;
 
   phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
   icnt = phaccu >> 24;
   OCR0B = pgm_read_byte_near(sine256 + icnt);
 
-  // digitalWrite(testPin, LOW);
+  cbi(PORTB, TESTPIN);
 }
 
 int main() {
   setup();
-  while (1)
-    loop();
+
+  usi_twi_slave(TONE_GEN_ADDR, 0, dataCallback, loop);
 }
