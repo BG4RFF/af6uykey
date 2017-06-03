@@ -65,11 +65,11 @@ const uchar sine256[] PROGMEM = {
 
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+#define gbi(sfr, bit) (_SFR_BYTE(sfr) & _BV(bit) ? 1 : 0)
 
-int pwmPin = PB1;
 #define PWMPIN (DDB1)
-int testPin = PB3;
 #define TESTPIN (DDB3)
+#define PLAYBUTTON (DDB4)
 
 volatile bool testVal = false;
 
@@ -150,28 +150,26 @@ void setup() {
   dfreq = 600.0;                         // initial output frequency = 1000.o Hz
   tword_m = pow(2, 32) * dfreq / refclk; // calulate DDS new tuning word
 
-  sbi(DDRB, PWMPIN);
-  // pinMode(pwmPin, OUTPUT);
-  sbi(DDRB, TESTPIN);
-  // pinMode(testPin, OUTPUT);
+  sbi(DDRB, PWMPIN);     // write
+  sbi(DDRB, TESTPIN);    // write
+  cbi(DDRB, PLAYBUTTON); // read
 
   Setup_timer();
 }
 
-void loop() {}
+uint8_t playButton = 0;
+
+void loop() { playButton = gbi(PINB, PINB4); }
 
 ISR(TIM0_OVF_vect) {
-  // if (testVal)
-  // digitalWrite(testPin, HIGH);
   sbi(PORTB, TESTPIN);
-  // else
-  // digitalWrite(testPin, LOW);
-  // cbi(PORTB, TESTPIN);
-  // testVal = !testVal;
 
   phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
   icnt = phaccu >> 24;
-  OCR0B = pgm_read_byte_near(sine256 + icnt);
+  if (playButton)
+    OCR0B = pgm_read_byte_near(sine256 + icnt);
+  else
+    OCR0B = 0;
 
   cbi(PORTB, TESTPIN);
 }
