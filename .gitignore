@@ -6,4 +6,5 @@ nohup.out
 .DS_Store
 *.raw
 *.log
+*.net
 nohup.out
