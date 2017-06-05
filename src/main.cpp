@@ -72,7 +72,7 @@ volatile bool testVal = false;
 
 double dfreq;
 // const double refclk=31372.549;  // =16MHz / 510
-const double refclk = 31376.6; // measured
+const double refclk = 15440.0; // measured
 
 // variables used inside interrupt service declared as voilatile
 volatile byte icnt;             // var inside interrupt
@@ -163,7 +163,7 @@ ISR(TIM0_OVF_vect) {
 
   phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
   icnt = phaccu >> 24;
-  if (playButton)
+  if (!playButton)
     OCR0B = pgm_read_byte_near(sine256 + icnt);
   else
     OCR0B = 0;
