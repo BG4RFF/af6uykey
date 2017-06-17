@@ -84,25 +84,16 @@ volatile unsigned long tword_m; // dds tuning word m
 void Setup_timer() {
   cli();
 
-  // Prescaler to : 1
-  sbi(TCCR0B, CS00);
-  cbi(TCCR0B, CS01);
-  cbi(TCCR0B, CS02);
+  PLLCSR |= (1 << PLLE);                // enable pll
+  loop_until_bit_is_set(PLLCSR, PLOCK); // wait for the PLL to lock
+  PLLCSR |= (1 << PCKE);  // set pll as clock for peripherals (timer1 PCK)
+  TCCR1 |= (1 << COM1A1); // set to clear on compare match, set when count is 1
+  OCR1C = 0xFF;           // set top count value to 255 (8-bits) total
+  TCCR1 |= (1 << PWM1A);  // enable pwm mode for OCR1A
 
-  // PWM Mode set to Phase Correct PWM
-  // Clear on up counting, set on down-counting
-  cbi(TCCR0A, COM0B0);
-  sbi(TCCR0A, COM0B1);
-
-  sbi(TCCR0A, WGM00); // Mode 1  / Phase Correct PWM
-  cbi(TCCR0A, WGM01);
-  cbi(TCCR0B, WGM02);
-
-  sbi(GTCCR, PSR0);
-
-  sbi(TIMSK, TOIE0); // enable Timer0 Interrupt
-
-  OCR0B = 0x7F;
+  // TCCR1 |= (1<<CS11); //select PCK/2 for clock source (32MHz)
+  TCCR1 |= (1 << CS11) | (1 << CS10); // select PCK/4 (16MHz) source
+  TIMSK |= (1 << TOIE1);              // enable TOV1 interrupt (timer overflow)
 
   sei();
 }
@@ -158,15 +149,15 @@ uint8_t playButton = 0;
 
 void loop() { playButton = gbi(PINB, PINB4); }
 
-ISR(TIM0_OVF_vect) {
+ISR(TIM1_OVF_vect) {
   sbi(PORTB, TESTPIN);
 
   phaccu = phaccu + tword_m; // soft DDS, phase accu with 32 bits
   icnt = phaccu >> 24;
   if (!playButton)
-    OCR0B = pgm_read_byte_near(sine256 + icnt);
+    OCR1A = pgm_read_byte_near(sine256 + icnt);
   else
-    OCR0B = 0;
+    OCR1A = 0;
 
   cbi(PORTB, TESTPIN);
 }
